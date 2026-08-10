@@ -69,13 +69,19 @@ def archive_sensor(sensor, manifest):
             start = end
         merged = sorted(rows.values(), key=row_key)
         print(f"  {name}: {len(merged)} rows ({len(merged) - n_before:+d})")
-        with gzip.open(out, "wt") as f:
-            json.dump(merged, f)
-        manifest.setdefault(sensor, {})[name] = {
-            "rows": len(merged), "new_rows": len(merged) - n_before,
-            "covered_from": DATA_START, "covered_until": now,
-            "fetched_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        }
+        payload = json.dumps(merged).encode()
+        # skip the write when nothing changed: gzip embeds an mtime in its
+        # header, so rewriting identical data would still dirty the git tree
+        if not out.exists() or gzip.decompress(out.read_bytes()) != payload:
+            with open(out, "wb") as raw, \
+                 gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as gz:
+                gz.write(payload)
+            manifest.setdefault(sensor, {})[name] = {
+                "rows": len(merged), "new_rows": len(merged) - n_before,
+                "covered_from": DATA_START, "covered_until": now,
+                "fetched_at": datetime.now(timezone.utc)
+                              .isoformat(timespec="seconds"),
+            }
 
 
 def ensure(sensors):
