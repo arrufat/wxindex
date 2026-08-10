@@ -163,6 +163,7 @@ def plot(curves, scope, path):
             if logscale:
                 ax.set_yscale("log")
         ax.axvline(60, color=MUTED, linewidth=1, linestyle=(0, (2, 2)), zorder=0)
+        ax.xaxis.set_major_locator(matplotlib.ticker.MultipleLocator(60))
         ax.set_title(label, fontsize=11, loc="left")
         ax.grid(color=GRID, linewidth=0.7)
         ax.set_axisbelow(True)
