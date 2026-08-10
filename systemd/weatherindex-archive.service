@@ -1,0 +1,7 @@
+[Unit]
+Description=Archive weatherindex.ai data
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 @PROJECT_DIR@/archive.py @SENSORS@

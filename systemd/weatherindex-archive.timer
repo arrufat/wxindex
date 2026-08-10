@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly weatherindex.ai data archival
+
+[Timer]
+OnCalendar=Mon 10:00
+Persistent=true
+RandomizedDelaySec=1h
+
+[Install]
+WantedBy=timers.target
