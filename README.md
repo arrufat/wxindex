@@ -53,6 +53,8 @@ coverage and triggers backfill if the floor moves.
 ```
 
 Installs a systemd user timer that runs the archiver every Monday morning
-(`Persistent=true`, so missed runs catch up at next boot). Uninstall with
+(`Persistent=true`, so missed runs catch up at next boot). If the project is
+a git repository, each run also commits `data/` when it changed, giving a
+versioned record of exactly what the API served each week. Uninstall with
 `systemctl --user disable --now weatherindex-archive.timer` and remove the
 two units from `~/.config/systemd/user/`.

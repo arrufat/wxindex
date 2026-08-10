@@ -4,4 +4,4 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/python3 @PROJECT_DIR@/archive.py @SENSORS@
+ExecStart=@PROJECT_DIR@/systemd/archive-and-commit.sh @SENSORS@
