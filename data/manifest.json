@@ -1,12 +1,5 @@
 {
   "LEBL": {
-    "raw_metrics": {
-      "rows": 234837,
-      "new_rows": 3795,
-      "covered_from": 1775952000,
-      "covered_until": 1786561379,
-      "fetched_at": "2026-08-12T19:03:02+00:00"
-    },
     "aggregated_metrics": {
       "rows": 15120,
       "new_rows": 4872,
@@ -23,13 +16,6 @@
     }
   },
   "RKSS": {
-    "raw_metrics": {
-      "rows": 123365,
-      "new_rows": 1901,
-      "covered_from": 1775952000,
-      "covered_until": 1786561384,
-      "fetched_at": "2026-08-12T19:03:06+00:00"
-    },
     "aggregated_metrics": {
       "rows": 15120,
       "new_rows": 4872,

@@ -1,5 +1,5 @@
 [project]
-name = "weatherindex-tools"
+name = "wxindex"
 version = "0.1.0"
 description = "Provider-accuracy analysis and data archival for the weatherindex.ai benchmark"
 readme = "README.md"

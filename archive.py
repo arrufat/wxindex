@@ -7,11 +7,6 @@ For each sensor, downloads the full available history (weekly chunks) from
     provider x horizon.
   - rain_events: daily rain-event counts.
 
-(The pre-2026-08 API also served raw_metrics — per-observation booleans of
-forecast vs observed. That endpoint was removed in the August 2026 API
-redesign; the data/<SENSOR>_raw_metrics.json.gz files preserve what we
-captured, 2026-04-12 to 2026-08-12, and can no longer be extended.)
-
 Output: data/<SENSOR>_<endpoint>.json.gz (rows deduped, sorted by timestamp)
 and data/manifest.json recording ranges and fetch time. Re-running extends
 existing archives incrementally and never re-downloads covered weeks.
@@ -104,8 +99,11 @@ def load(sensor, endpoint="aggregated_metrics"):
         return json.load(f)
 
 
+DEFAULT_SENSORS = ["LEBL", "RKSS"]
+
+
 def main():
-    ensure(sys.argv[1:] or ["LEBL", "RKSS"])
+    ensure(sys.argv[1:] or DEFAULT_SENSORS)
 
 
 if __name__ == "__main__":

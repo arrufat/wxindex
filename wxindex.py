@@ -146,7 +146,8 @@ def plot(curves, scope, path):
             if not pts:
                 continue
             xs = sorted(pts)
-            ax.plot(xs, [pts[t] for t in xs], color=PROVIDER_COLORS[prov],
+            ax.plot(xs, [pts[t] for t in xs],
+                    color=PROVIDER_COLORS.get(prov, "#898781"),
                     linewidth=2, marker="o", markersize=3.5, label=prov)
         if mode == "one":
             ax.axhline(1, color=MUTED, linewidth=1, linestyle=(0, (4, 3)), zorder=0)

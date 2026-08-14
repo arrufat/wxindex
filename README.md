@@ -1,4 +1,4 @@
-# weatherindex tools
+# wxindex
 
 Analysis tools for [weatherindex.ai](https://weatherindex.ai/), Rainbow AI's
 open weather-forecast accuracy benchmark. The site ranks precipitation
@@ -19,9 +19,6 @@ Data comes from the site's undocumented, unauthenticated JSON API
   `include_incomplete=true`.
 - Summaries advertise a short window, but history is served from
   **2026-02-16** onward.
-- The old `raw_metrics` endpoint (per-observation forecast-vs-observed
-  booleans) was removed in the redesign; `data/*_raw_metrics.json.gz`
-  preserves 2026-04-12 → 2026-08-12 and cannot be extended.
 - Providers cover different horizons (vaisala → 60 min, accuweather → 120,
   rainbowai → 240, weathercompany → 420), so scores are only ranked within
   windows a provider fully covers. Foreca appears in the site palette as of
@@ -39,8 +36,8 @@ Prints per-metric tables (F-score, CSI, precision, recall, accuracy,
 frequency bias) across horizon windows (10–60/120/240/420 min) and, with
 `--plot`, renders small-multiple curves using the site's own provider colors.
 Sensor analyses read from the local archive (refreshing it first);
-country/world queries hit the API live. Dependencies (matplotlib) are
-declared inline (PEP 723) — `uv run` handles the venv.
+country/world queries hit the API live. Dependencies live in
+`pyproject.toml` — `uv run` handles the venv.
 
 ## archive.py — keep the data before it rolls away
 
@@ -54,6 +51,14 @@ and `rain_events`, both from one `/step` request per week. Re-runs fetch
 only the last partial week; a manifest tracks coverage and triggers
 backfill if the floor moves.
 
+## data/ — what each file is
+
+| file | grain | updates | used by |
+|---|---|---|---|
+| `<S>_aggregated_metrics.json.gz` | daily tp/tn/fp/fn per provider × horizon | weekly (timer) | `wxindex` — all rankings/plots |
+| `<S>_rain_events.json.gz` | daily rain-event counts | weekly (timer) | nothing yet; context only |
+| `manifest.json` | fetch bookkeeping | every archiver run | `archive.py` |
+
 ## systemd/ — weekly automatic archival
 
 ```sh
@@ -62,8 +67,17 @@ backfill if the floor moves.
 ```
 
 Installs a systemd user timer that runs the archiver every Monday morning
+(default sensors: LEBL, RKSS)
 (`Persistent=true`, so missed runs catch up at next boot). If the project is
 a git repository, each run also commits `data/` when it changed, giving a
 versioned record of exactly what the API served each week. Uninstall with
-`systemctl --user disable --now weatherindex-archive.timer` and remove the
+`systemctl --user disable --now wxindex-archive.timer` and remove the
 two units from `~/.config/systemd/user/`.
+
+## License
+
+The code is MIT-licensed (see `LICENSE`). The contents of `data/` are not
+covered by that license: they are benchmark data produced by
+[weatherindex.ai](https://weatherindex.ai/) (Rainbow Technologies),
+captured from their public API and redistributed here for archival and
+research purposes, with attribution.
