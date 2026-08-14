@@ -8,18 +8,18 @@
       "fetched_at": "2026-08-12T19:03:02+00:00"
     },
     "aggregated_metrics": {
-      "rows": 10248,
-      "new_rows": 168,
-      "covered_from": 1775952000,
-      "covered_until": 1786561379,
-      "fetched_at": "2026-08-12T19:03:03+00:00"
+      "rows": 15120,
+      "new_rows": 4872,
+      "covered_from": 1771200000,
+      "covered_until": 1786732823,
+      "fetched_at": "2026-08-14T18:40:29+00:00"
     },
     "rain_events": {
-      "rows": 122,
-      "new_rows": 2,
-      "covered_from": 1775952000,
-      "covered_until": 1786561379,
-      "fetched_at": "2026-08-12T19:03:03+00:00"
+      "rows": 180,
+      "new_rows": 58,
+      "covered_from": 1771200000,
+      "covered_until": 1786732823,
+      "fetched_at": "2026-08-14T18:40:29+00:00"
     }
   },
   "RKSS": {
@@ -31,18 +31,18 @@
       "fetched_at": "2026-08-12T19:03:06+00:00"
     },
     "aggregated_metrics": {
-      "rows": 10248,
-      "new_rows": 168,
-      "covered_from": 1775952000,
-      "covered_until": 1786561384,
-      "fetched_at": "2026-08-12T19:03:06+00:00"
+      "rows": 15120,
+      "new_rows": 4872,
+      "covered_from": 1771200000,
+      "covered_until": 1786732829,
+      "fetched_at": "2026-08-14T18:40:35+00:00"
     },
     "rain_events": {
-      "rows": 122,
-      "new_rows": 2,
-      "covered_from": 1775952000,
-      "covered_until": 1786561384,
-      "fetched_at": "2026-08-12T19:03:06+00:00"
+      "rows": 180,
+      "new_rows": 58,
+      "covered_from": 1771200000,
+      "covered_until": 1786732829,
+      "fetched_at": "2026-08-14T18:40:35+00:00"
     }
   }
 }

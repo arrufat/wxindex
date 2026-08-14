@@ -11,12 +11,21 @@ Data comes from the site's undocumented, unauthenticated JSON API
 (`https://weatherindex.ai/api/...`). Quirks worth knowing:
 
 - Requests need a normal `User-Agent` header (bare `urllib` gets 403).
-- `/api/data/summary` advertises a rolling ~30-day window, but
-  `aggregated_metrics` serves history from **2026-04-12** onward via
-  `start_timestamp`/`end_timestamp` (unix seconds).
+- The API was redesigned in August 2026. Current endpoints:
+  `/api/charts/group/{sensor|country}/{id}/{step|total}`,
+  `/api/charts/regional` (includes a `world` row), `/api/metadata`,
+  `/api/sensors/{id}/{summary|details}` — all accept
+  `start_timestamp`/`end_timestamp` (unix seconds) and
+  `include_incomplete=true`.
+- Summaries advertise a short window, but history is served from
+  **2026-02-16** onward.
+- The old `raw_metrics` endpoint (per-observation forecast-vs-observed
+  booleans) was removed in the redesign; `data/*_raw_metrics.json.gz`
+  preserves 2026-04-12 → 2026-08-12 and cannot be extended.
 - Providers cover different horizons (vaisala → 60 min, accuweather → 120,
   rainbowai → 240, weathercompany → 420), so scores are only ranked within
-  windows a provider fully covers.
+  windows a provider fully covers. Foreca appears in the site palette as of
+  August 2026 but serves no data yet.
 
 ## wxindex.py — provider rankings and plots
 
@@ -40,10 +49,10 @@ python3 archive.py LEBL RKSS       # stdlib only
 ```
 
 Incrementally downloads each sensor's full history into `data/*.json.gz`:
-`raw_metrics` (per-observation forecast-vs-observed booleans — everything
-else can be recomputed from these), daily-grain `aggregated_metrics`, and
-`rain_events`. Re-runs fetch only the last partial week; a manifest tracks
-coverage and triggers backfill if the floor moves.
+daily-grain `aggregated_metrics` (confusion counts per provider × horizon)
+and `rain_events`, both from one `/step` request per week. Re-runs fetch
+only the last partial week; a manifest tracks coverage and triggers
+backfill if the floor moves.
 
 ## systemd/ — weekly automatic archival
 

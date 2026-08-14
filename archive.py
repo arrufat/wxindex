@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Archive weatherindex.ai data locally before it rolls out of their window.
 
-For each sensor, downloads the full available history (weekly chunks) of:
-  - raw_metrics: per-observation booleans — what each provider forecast vs
-    what the sensor observed, for every timestamp x horizon. Everything else
-    can be recomputed from this.
+For each sensor, downloads the full available history (weekly chunks) from
+/api/charts/group/sensor/<id>/step, whose response carries both:
   - aggregated_metrics (timestamp grain): daily confusion counts per
     provider x horizon.
   - rain_events: daily rain-event counts.
+
+(The pre-2026-08 API also served raw_metrics — per-observation booleans of
+forecast vs observed. That endpoint was removed in the August 2026 API
+redesign; the data/<SENSOR>_raw_metrics.json.gz files preserve what we
+captured, 2026-04-12 to 2026-08-12, and can no longer be extended.)
 
 Output: data/<SENSOR>_<endpoint>.json.gz (rows deduped, sorted by timestamp)
 and data/manifest.json recording ranges and fetch time. Re-running extends
@@ -24,21 +27,18 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-API = "https://weatherindex.ai/api/data"
-DATA_START = 1775952000  # 2026-04-12T00:00Z, earliest data the API holds
+API = "https://weatherindex.ai/api"
+DATA_START = 1771200000  # 2026-02-16T00:00Z, earliest data the API holds
 WEEK = 7 * 86400
 DATA_DIR = Path(__file__).parent / "data"
 
-ENDPOINTS = {
-    "raw_metrics": "raw_metrics?sensor_id={sensor}",
-    "aggregated_metrics": ("aggregated_metrics?group_by=timestamp,forecast_time,"
-                           "forecast_provider&sensor_id={sensor}"),
-    "rain_events": "rain_events?sensor_id={sensor}",
-}
+# both files come from one /step response: key -> response field
+FILES = {"aggregated_metrics": "metrics", "rain_events": "rain_events"}
 
 
-def fetch(path, start, end):
-    url = f"{API}/{path}&start_timestamp={start}&end_timestamp={end}"
+def fetch_week(sensor, start, end):
+    url = (f"{API}/charts/group/sensor/{sensor}/step"
+           f"?start_timestamp={start}&end_timestamp={end}&include_incomplete=true")
     req = urllib.request.Request(url, headers={"User-Agent": "curl/8.9"})
     with urllib.request.urlopen(req, timeout=120) as r:
         return json.load(r)
@@ -50,25 +50,25 @@ def row_key(row):
 
 def archive_sensor(sensor, manifest):
     now = int(time.time())
-    for name, path_tpl in ENDPOINTS.items():
+    store = {name: {row_key(r): r for r in load(sensor, name)} for name in FILES}
+    n_before = {name: len(rows) for name, rows in store.items()}
+    # both files are filled by the same requests, so coverage is tracked
+    # by the aggregated_metrics manifest entry
+    meta = manifest.get(sensor, {}).get("aggregated_metrics", {})
+    if meta.get("covered_from", DATA_START) > DATA_START:
+        start = DATA_START  # backfill: archive misses the earliest data
+    else:
+        start = max(DATA_START, meta.get("covered_until", DATA_START) - WEEK)
+    while start < now:
+        end = min(start + WEEK, now)
+        chunk = fetch_week(sensor, start, end)
+        for name, field in FILES.items():
+            store[name].update({row_key(r): r for r in chunk.get(field, [])})
+        start = end
+    for name in FILES:
+        merged = sorted(store[name].values(), key=row_key)
         out = DATA_DIR / f"{sensor}_{name}.json.gz"
-        rows = {}
-        if out.exists():
-            with gzip.open(out, "rt") as f:
-                rows = {row_key(r): r for r in json.load(f)}
-        meta = manifest.get(sensor, {}).get(name, {})
-        if meta.get("covered_from", DATA_START) > DATA_START:
-            start = DATA_START  # backfill: archive misses the earliest data
-        else:
-            start = max(DATA_START, meta.get("covered_until", DATA_START) - WEEK)
-        n_before = len(rows)
-        while start < now:
-            end = min(start + WEEK, now)
-            chunk = fetch(path_tpl.format(sensor=sensor), start, end)
-            rows.update({row_key(r): r for r in chunk})
-            start = end
-        merged = sorted(rows.values(), key=row_key)
-        print(f"  {name}: {len(merged)} rows ({len(merged) - n_before:+d})")
+        print(f"  {name}: {len(merged)} rows ({len(merged) - n_before[name]:+d})")
         payload = json.dumps(merged).encode()
         # skip the write when nothing changed: gzip embeds an mtime in its
         # header, so rewriting identical data would still dirty the git tree
@@ -77,7 +77,7 @@ def archive_sensor(sensor, manifest):
                  gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as gz:
                 gz.write(payload)
             manifest.setdefault(sensor, {})[name] = {
-                "rows": len(merged), "new_rows": len(merged) - n_before,
+                "rows": len(merged), "new_rows": len(merged) - n_before[name],
                 "covered_from": DATA_START, "covered_until": now,
                 "fetched_at": datetime.now(timezone.utc)
                               .isoformat(timespec="seconds"),
@@ -104,5 +104,9 @@ def load(sensor, endpoint="aggregated_metrics"):
         return json.load(f)
 
 
-if __name__ == "__main__":
+def main():
     ensure(sys.argv[1:] or ["LEBL", "RKSS"])
+
+
+if __name__ == "__main__":
+    main()

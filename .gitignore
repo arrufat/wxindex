@@ -1,2 +1,4 @@
 __pycache__/
 wxindex_*.png
+.venv/
+*.egg-info/

@@ -1,8 +1,4 @@
-#!/usr/bin/env -S uv run --script
-# /// script
-# requires-python = ">=3.11"
-# dependencies = ["matplotlib"]
-# ///
+#!/usr/bin/env python3
 """Rank weather providers by area under their metric-vs-horizon curves.
 
 Pulls data from the (undocumented) weatherindex.ai JSON API and computes,
@@ -12,9 +8,9 @@ with different horizon coverage. A provider is only ranked in a window
 it fully covers.
 
 Usage:
-  ./wxindex.py --sensor LEBL --plot
-  ./wxindex.py --country ESP
-  ./wxindex.py            # worldwide
+  uv run wxindex --sensor LEBL --plot
+  uv run wxindex --country ESP
+  uv run wxindex            # worldwide
 """
 
 import argparse
@@ -23,7 +19,7 @@ import sys
 import urllib.request
 from collections import defaultdict
 
-API = "https://weatherindex.ai/api/data/aggregated_metrics"
+API = "https://weatherindex.ai/api"
 
 # metric key -> (label, how to score: "max" = higher is better,
 # "one" = closer to 1 is better)
@@ -46,6 +42,7 @@ PROVIDER_COLORS = {
     "rainbowai": "#45D0A2",
     "vaisala": "#0481C8",
     "weathercompany": "#8A2BE2",
+    "foreca": "#F76A6A",  # in the site's palette since Aug 2026, no data yet
 }
 INK = "#ffffff"
 INK2 = "#c3c2b7"
@@ -55,19 +52,15 @@ BASELINE = "#383835"
 SURFACE = "#1a1a19"
 
 
-def fetch(sensor=None, country=None, start=None, end=None):
-    query = f"{API}?group_by=forecast_time,forecast_provider"
-    if sensor:
-        query += f"&sensor_id={sensor}"
-    elif country:
-        query += f"&country={country}"
-    if start:
-        query += f"&start_timestamp={start}"
-    if end:
-        query += f"&end_timestamp={end}"
-    req = urllib.request.Request(query, headers={"User-Agent": "curl/8.9"})
+def fetch(country=None, start=None, end=None):
+    path = f"/charts/group/country/{country}/total" if country else "/charts/regional"
+    params = [f"{k}={v}" for k, v in
+              (("start_timestamp", start), ("end_timestamp", end)) if v]
+    url = f"{API}{path}" + (f"?{'&'.join(params)}" if params else "")
+    req = urllib.request.Request(url, headers={"User-Agent": "curl/8.9"})
     with urllib.request.urlopen(req) as r:
-        return json.load(r)
+        rows = json.load(r)["data"]
+    return rows if country else [r for r in rows if r.get("region") == "world"]
 
 
 def build_curves(rows):
@@ -202,8 +195,8 @@ def main():
     ap.add_argument("--country", help="ISO3 country code, e.g. ESP")
     ap.add_argument("--plot", nargs="?", const=True, default=None, metavar="PATH",
                     help="also write a PNG (default: wxindex_<scope>.png)")
-    ap.add_argument("--start", help="YYYY-MM-DD; API has data from 2026-04-12, "
-                    "despite the summary endpoint advertising only ~30 days")
+    ap.add_argument("--start", help="YYYY-MM-DD; API has data from 2026-02-16, "
+                    "despite the summary endpoint advertising a shorter window")
     ap.add_argument("--end", help="YYYY-MM-DD")
     args = ap.parse_args()
 
@@ -218,7 +211,7 @@ def main():
     if args.sensor:
         rows = rows_from_archive(args.sensor, ts(args.start), ts(args.end))
     else:
-        rows = fetch(args.sensor, args.country, ts(args.start), ts(args.end))
+        rows = fetch(args.country, ts(args.start), ts(args.end))
     curves = build_curves(rows)
     if not curves:
         sys.exit(f"no data returned for {scope}")
