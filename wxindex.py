@@ -15,6 +15,7 @@ Usage:
 
 import argparse
 import json
+import math
 import sys
 import urllib.request
 from collections import defaultdict
@@ -156,11 +157,16 @@ def plot(curves, scope, path):
                         ha="right", va="bottom", fontsize=8, color=MUTED)
             if logscale:
                 ax.set_yscale("log")
-                # Bias stays within a decade of 1, where the log locator picks
-                # too few ticks and its formatter uses 10^n mathtext; use
-                # evenly spaced plain-decimal ticks instead.
-                ax.yaxis.set_major_locator(
-                    matplotlib.ticker.MaxNLocator(nbins=10, steps=[1, 2, 2.5, 5, 10]))
+                # Ticks at powers of 2**(1/k) so they land evenly on the log
+                # axis and n-times over- and under-forecasting sit symmetric
+                # around 1; rounded to two significant figures for readable
+                # labels (the default log formatter uses 10^n mathtext).
+                lo, hi = ax.get_ylim()
+                k = max((k for k in (1, 2, 4, 8)
+                         if k * math.log2(hi / lo) <= 10), default=1)
+                ax.set_yticks(sorted({float(f"{2 ** (n / k):.2g}")
+                                      for n in range(math.ceil(k * math.log2(lo)),
+                                                     math.floor(k * math.log2(hi)) + 1)}))
                 ax.yaxis.set_minor_locator(matplotlib.ticker.NullLocator())
                 ax.yaxis.set_major_formatter(
                     matplotlib.ticker.FuncFormatter(lambda v, _: f"{v:g}"))
@@ -175,18 +181,7 @@ def plot(curves, scope, path):
         if ax in axes[-1]:
             ax.set_xlabel("forecast horizon, minutes", fontsize=9)
 
-    # Direct labels on the first panel at each line's end; legend covers the rest.
-    ax0 = axes.flat[0]
-    key0 = next(iter(METRICS))
-    for prov in providers:
-        pts = curves[prov][key0]
-        if pts:
-            last = max(pts)
-            ax0.annotate(prov, xy=(last, pts[last]), xytext=(5, 0),
-                         textcoords="offset points", fontsize=8.5,
-                         color=INK2, va="center")
-
-    handles, labels = ax0.get_legend_handles_labels()
+    handles, labels = axes.flat[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="outside upper right", ncol=len(labels),
                frameon=False, fontsize=10, labelcolor=INK2)
     fig.suptitle(f"{scope} — provider skill vs forecast horizon\n", x=0.01,
