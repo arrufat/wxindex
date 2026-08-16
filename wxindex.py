@@ -156,10 +156,14 @@ def plot(curves, scope, path):
                         ha="right", va="bottom", fontsize=8, color=MUTED)
             if logscale:
                 ax.set_yscale("log")
-                # Plain decimals instead of the log default's 10^n mathtext.
-                fmt = matplotlib.ticker.FuncFormatter(lambda v, _: f"{v:g}")
-                ax.yaxis.set_major_formatter(fmt)
-                ax.yaxis.set_minor_formatter(fmt)
+                # Bias stays within a decade of 1, where the log locator picks
+                # too few ticks and its formatter uses 10^n mathtext; use
+                # evenly spaced plain-decimal ticks instead.
+                ax.yaxis.set_major_locator(
+                    matplotlib.ticker.MaxNLocator(nbins=10, steps=[1, 2, 2.5, 5, 10]))
+                ax.yaxis.set_minor_locator(matplotlib.ticker.NullLocator())
+                ax.yaxis.set_major_formatter(
+                    matplotlib.ticker.FuncFormatter(lambda v, _: f"{v:g}"))
         ax.axvline(60, color=MUTED, linewidth=1, linestyle=(0, (2, 2)), zorder=0)
         ax.xaxis.set_major_locator(matplotlib.ticker.MultipleLocator(60))
         ax.set_title(label, fontsize=11, loc="left")
