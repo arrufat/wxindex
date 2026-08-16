@@ -156,6 +156,10 @@ def plot(curves, scope, path):
                         ha="right", va="bottom", fontsize=8, color=MUTED)
             if logscale:
                 ax.set_yscale("log")
+                # Plain decimals instead of the log default's 10^n mathtext.
+                fmt = matplotlib.ticker.FuncFormatter(lambda v, _: f"{v:g}")
+                ax.yaxis.set_major_formatter(fmt)
+                ax.yaxis.set_minor_formatter(fmt)
         ax.axvline(60, color=MUTED, linewidth=1, linestyle=(0, (2, 2)), zorder=0)
         ax.xaxis.set_major_locator(matplotlib.ticker.MultipleLocator(60))
         ax.set_title(label, fontsize=11, loc="left")
