@@ -15,7 +15,6 @@ Usage:
 
 import argparse
 import json
-import math
 import sys
 import urllib.request
 from collections import defaultdict
@@ -140,8 +139,6 @@ def plot(curves, scope, path):
     providers = sorted(curves)
 
     for ax, (key, (label, mode)) in zip(axes.flat, METRICS.items()):
-        logscale = (mode == "one"
-                    and all(v > 0 for p in providers for v in curves[p][key].values()))
         for prov in providers:
             pts = curves[prov][key]
             if not pts:
@@ -155,21 +152,6 @@ def plot(curves, scope, path):
             ax.annotate("ideal = 1", xy=(0.99, 1), xycoords=("axes fraction", "data"),
                         xytext=(0, 3), textcoords="offset points",
                         ha="right", va="bottom", fontsize=8, color=MUTED)
-            if logscale:
-                ax.set_yscale("log")
-                # Ticks at powers of 2**(1/k) so they land evenly on the log
-                # axis and n-times over- and under-forecasting sit symmetric
-                # around 1; rounded to two significant figures for readable
-                # labels (the default log formatter uses 10^n mathtext).
-                lo, hi = ax.get_ylim()
-                k = max((k for k in (1, 2, 4, 8)
-                         if k * math.log2(hi / lo) <= 10), default=1)
-                ax.set_yticks(sorted({float(f"{2 ** (n / k):.2g}")
-                                      for n in range(math.ceil(k * math.log2(lo)),
-                                                     math.floor(k * math.log2(hi)) + 1)}))
-                ax.yaxis.set_minor_locator(matplotlib.ticker.NullLocator())
-                ax.yaxis.set_major_formatter(
-                    matplotlib.ticker.FuncFormatter(lambda v, _: f"{v:g}"))
         ax.axvline(60, color=MUTED, linewidth=1, linestyle=(0, (2, 2)), zorder=0)
         ax.xaxis.set_major_locator(matplotlib.ticker.MultipleLocator(60))
         ax.set_title(label, fontsize=11, loc="left")
