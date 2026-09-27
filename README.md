@@ -39,6 +39,36 @@ Sensor analyses read from the local archive (refreshing it first);
 country/world queries hit the API live. Dependencies live in
 `pyproject.toml` — `uv run` handles the venv.
 
+## wxskill.py — one fair score, with error bars and seasons
+
+```sh
+uv run wxskill --sensor LEBL --plot            # tables + two PNGs
+uv run wxskill --sensor LEBL RKSS --html       # self-contained wxskill_report.html
+```
+
+Sensor-only (it needs the archive's daily counts). Instead of counting wins
+across correlated metrics, it scores each provider with the **Equitable Threat
+Score**: CSI with the hits a random forecast would get subtracted. Accuracy
+counts every dry minute as a success; ETS doesn't, so dry periods can't
+inflate it.
+
+- **Pooling:** confusion counts are summed over every day and horizon in the
+  window (10–60 min: all four providers; 10–120: three), then scored once.
+- **Uncertainty:** a paired bootstrap resamples whole days (`--boot`, default
+  2000). Every provider sees the same resampled days, so the output also gives
+  `P(row beats column)`.
+- **Time:** ETS per calendar month and meteorological season, plus a trailing
+  30-day line with 90% CI bands. Groups with fewer than 5 rain days are
+  flagged. At LEBL that's most months, so read the seasons first.
+- **Performance diagram:** probability of detection vs success ratio, with
+  CSI contours and frequency-bias rays. Each provider is a trail across
+  horizons. It shows *why* a score is what it is: for example, over-forecasting
+  (above the bias-1 ray) buys detection at the cost of false alarms.
+
+The HTML report inlines SVG figures and uses no external resources. It has one
+tab per sensor and sortable tables, and a hover tooltip on each monthly cell
+shows its full interval.
+
 ## archive.py — keep the data before it rolls away
 
 ```sh

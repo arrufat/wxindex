@@ -8,15 +8,17 @@ license = "MIT"
 authors = [{ name = "Adrià Arrufat" }]
 dependencies = [
     "matplotlib>=3.8",
+    "numpy>=1.26",
 ]
 
 [project.scripts]
 wxindex = "wxindex:main"
 wxarchive = "archive:main"
+wxskill = "wxskill:main"
 
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = ["wxindex", "archive"]
+py-modules = ["wxindex", "wxskill", "archive"]

@@ -117,7 +117,8 @@ def mean_auc(points, lo, hi):
     return area / (xs[-1] - xs[0])
 
 
-def plot(curves, scope, path):
+def theme():
+    """Headless matplotlib with the site's dark theme applied; returns pyplot."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -134,6 +135,12 @@ def plot(curves, scope, path):
         "axes.facecolor": SURFACE,
         "savefig.facecolor": SURFACE,
     })
+    return plt
+
+
+def plot(curves, scope, path):
+    import matplotlib
+    plt = theme()
 
     fig, axes = plt.subplots(2, 3, figsize=(15, 8.5), constrained_layout=True)
     providers = sorted(curves)
@@ -175,6 +182,13 @@ def plot(curves, scope, path):
     print(f"\nplot saved to {path}")
 
 
+def ts(day):
+    """YYYY-MM-DD -> unix seconds at 00:00 UTC (None passes through)."""
+    from datetime import datetime, timezone
+    return (int(datetime.strptime(day, "%Y-%m-%d")
+                .replace(tzinfo=timezone.utc).timestamp()) if day else None)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--sensor", help="METAR station id, e.g. LEBL")
@@ -185,11 +199,6 @@ def main():
                     "despite the summary endpoint advertising a shorter window")
     ap.add_argument("--end", help="YYYY-MM-DD")
     args = ap.parse_args()
-
-    def ts(day):
-        from datetime import datetime, timezone
-        return (int(datetime.strptime(day, "%Y-%m-%d")
-                    .replace(tzinfo=timezone.utc).timestamp()) if day else None)
 
     scope = args.sensor or args.country or "World"
     if args.start or args.end:
