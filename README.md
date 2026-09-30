@@ -19,6 +19,11 @@ Data comes from the site's undocumented, unauthenticated JSON API
   `include_incomplete=true`.
 - Summaries advertise a short window, but history is served from
   **2026-02-16** onward.
+- Daily buckets are stamped with the midnight (UTC) that *ends* the day: the
+  row at 2026-09-30T00:00Z holds 2026-09-29's observations, and
+  `end_timestamp` is inclusive. The tools shift this for you, so
+  `--start`/`--end` are the real days covered (end excluded) and the archive
+  starts on 2026-02-15.
 - Providers cover different horizons (vaisala → 60 min, accuweather → 120,
   rainbowai → 240, weathercompany → 420), so scores are only ranked within
   windows a provider fully covers. Foreca appears in the site palette as of

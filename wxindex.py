@@ -53,9 +53,13 @@ SURFACE = "#1a1a19"
 
 
 def fetch(country=None, start=None, end=None):
+    """Aggregate over the UTC days [start, end). The API stamps each daily
+    bucket with the midnight that ends it and treats end_timestamp as
+    inclusive, so day D is requested as the bucket stamped D + 1 day."""
     path = f"/charts/group/country/{country}/total" if country else "/charts/regional"
     params = [f"{k}={v}" for k, v in
-              (("start_timestamp", start), ("end_timestamp", end)) if v]
+              (("start_timestamp", start and start + 86400),
+               ("end_timestamp", end)) if v]
     url = f"{API}{path}" + (f"?{'&'.join(params)}" if params else "")
     req = urllib.request.Request(url, headers={"User-Agent": "curl/8.9"})
     with urllib.request.urlopen(req) as r:
@@ -83,7 +87,7 @@ def rows_from_archive(sensor, start, end):
     except OSError as e:
         print(f"archive refresh failed ({e}); using cached data", file=sys.stderr)
     counts = defaultdict(lambda: {"tp": 0, "tn": 0, "fp": 0, "fn": 0})
-    for r in archive.load(sensor):
+    for r in archive.load_days(sensor):
         if (start is None or r["timestamp"] >= start) and \
            (end is None or r["timestamp"] < end):
             c = counts[(r["forecast_provider"], r["forecast_time"])]
@@ -195,9 +199,10 @@ def main():
     ap.add_argument("--country", help="ISO3 country code, e.g. ESP")
     ap.add_argument("--plot", nargs="?", const=True, default=None, metavar="PATH",
                     help="also write a PNG (default: wxindex_<scope>.png)")
-    ap.add_argument("--start", help="YYYY-MM-DD; API has data from 2026-02-16, "
-                    "despite the summary endpoint advertising a shorter window")
-    ap.add_argument("--end", help="YYYY-MM-DD")
+    ap.add_argument("--start", help="YYYY-MM-DD, first day included; API has data "
+                    "from 2026-02-15, despite the summary endpoint advertising "
+                    "a shorter window")
+    ap.add_argument("--end", help="YYYY-MM-DD, first day excluded")
     args = ap.parse_args()
 
     scope = args.sensor or args.country or "World"

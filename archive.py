@@ -4,7 +4,8 @@
 For each sensor, downloads the full available history (weekly chunks) from
 /api/charts/group/sensor/<id>/step, whose response carries both:
   - aggregated_metrics (timestamp grain): daily confusion counts per
-    provider x horizon.
+    provider x horizon, stamped with the midnight that ends each day
+    (use load_days() to get them keyed by the day they cover).
   - rain_events: daily rain-event counts.
 
 Output: data/<SENSOR>_<endpoint>.json.gz (rows deduped, sorted by timestamp)
@@ -24,7 +25,8 @@ from pathlib import Path
 
 API = "https://weatherindex.ai/api"
 DATA_START = 1771200000  # 2026-02-16T00:00Z, earliest data the API holds
-WEEK = 7 * 86400
+DAY = 86400
+WEEK = 7 * DAY
 DATA_DIR = Path(__file__).parent / "data"
 
 # both files come from one /step response: key -> response field
@@ -97,6 +99,13 @@ def load(sensor, endpoint="aggregated_metrics"):
         return []
     with gzip.open(out, "rt") as f:
         return json.load(f)
+
+
+def load_days(sensor, endpoint="aggregated_metrics"):
+    """Archived rows with timestamp set to the start of the UTC day they cover.
+    The API labels each daily bucket with the midnight that *ends* it: the row
+    stamped 2026-09-30T00:00Z holds observations from 2026-09-29."""
+    return [{**r, "timestamp": r["timestamp"] - DAY} for r in load(sensor, endpoint)]
 
 
 DEFAULT_SENSORS = ["LEBL", "RKSS"]

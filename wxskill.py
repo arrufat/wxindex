@@ -98,7 +98,7 @@ class Sensor:
             archive.ensure([sensor])
         except OSError as e:
             print(f"archive refresh failed ({e}); using cached data", file=sys.stderr)
-        rows = [r for r in archive.load(sensor)
+        rows = [r for r in archive.load_days(sensor)
                 if (start is None or r["timestamp"] >= start)
                 and (end is None or r["timestamp"] < end)]
         if not rows:
@@ -119,7 +119,7 @@ class Sensor:
         observed = self.C[:, :, 0, 0] + self.C[:, :, 0, 2]
         self.rainy = observed.max(axis=1) > 0
         events = {r["timestamp"]: r["rain_events"]
-                  for r in archive.load(sensor, "rain_events")}
+                  for r in archive.load_days(sensor, "rain_events")}
         self.rain_events = np.array([events.get(d, 0) for d in self.days])
 
     def window(self, lo, hi):
