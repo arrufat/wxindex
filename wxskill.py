@@ -35,6 +35,8 @@ WINDOWS = [(10, 60), (10, 120)]  # 10–60: all four providers; 10–120: three
 HEADLINE = WINDOWS[0]
 THIN = 5          # groups with fewer rain days than this are flagged
 ROLL_DAYS = 30    # trailing window for the rolling score
+TIMELINE_DAYS = (1, 7, 14, ROLL_DAYS)  # trailing windows on the HTML timeline
+ECHARTS = "https://cdnjs.cloudflare.com/ajax/libs/echarts/5.6.0/echarts.min.js"
 LEVEL = 90        # confidence level, percent
 KEY_HORIZONS = (10, 60, 120, 240)  # labelled on the performance diagram
 SEASONS = {12: "DJF", 1: "DJF", 2: "DJF", 3: "MAM", 4: "MAM", 5: "MAM",
@@ -166,15 +168,27 @@ class Analysis:
                 full = mask.sum() >= (28 if kind == "month" else 90)
                 self.groups.append(self.group(W, mask, rng, label, kind, full))
 
-        # rolling window ending on each day
-        self.rolling = [self.group(W, (s.days > d - ROLL_DAYS * DAY) & (s.days <= d),
-                                   rng, "", "roll", True) for d in s.days]
+        # trailing windows ending on each day
+        self.trailing = {n: self.trail(W, n, rng) for n in TIMELINE_DAYS}
 
         # performance diagram: every horizon pooled over all days
         self.perf = scores(s.C.sum(axis=0))  # [provider, horizon]
         h60 = int(np.flatnonzero(s.horizons == 60)[0])
         sample = scores(resample(s.C[:, :, h60], boot, rng))
         self.perf60 = {k: interval(sample[k]) for k in ("sr", "pod")}
+
+    def trail(self, W, n, rng):
+        """Counts and ETS pooled over the n days ending on each day, with CIs
+        (none for a single day: resampling one day only returns that day)."""
+        days = self.s.days
+        counts = np.zeros(W.shape)
+        lo, hi = np.full(W.shape[:2], np.nan), np.full(W.shape[:2], np.nan)
+        for i, d in enumerate(days):
+            mask = (days > d - n * DAY) & (days <= d)
+            counts[i] = W[mask].sum(axis=0)
+            if n > 1:
+                lo[i], hi[i] = interval(scores(resample(W[mask], self.boot, rng))["ets"])
+        return {"counts": counts, "ets": scores(counts)["ets"], "lo": lo, "hi": hi}
 
     def group(self, W, mask, rng, label, kind, full):
         sample = scores(resample(W[mask], self.boot, rng))["ets"]
@@ -314,29 +328,23 @@ def draw_heatmap(ax_h, an, provs):
 
 
 
-def fig_time(an, heatmap=True):
+def fig_time(an):
     import matplotlib.dates as mdates
     plt = theme()
     s = an.s
     provs = list(np.flatnonzero(an.ok))
-    if heatmap:
-        fig, (ax_h, ax_r, ax_e) = plt.subplots(
-            3, 1, figsize=(13, 9.5), constrained_layout=True,
-            gridspec_kw={"height_ratios": [len(provs) * 0.62 + 1.1, 3.2, 0.8]})
-        draw_heatmap(ax_h, an, provs)
-    else:  # the HTML report shows the heatmap as a table instead
-        fig, (ax_r, ax_e) = plt.subplots(
-            2, 1, figsize=(13, 5.5), constrained_layout=True,
-            gridspec_kw={"height_ratios": [3.2, 0.8]})
+    fig, (ax_h, ax_r, ax_e) = plt.subplots(
+        3, 1, figsize=(13, 9.5), constrained_layout=True,
+        gridspec_kw={"height_ratios": [len(provs) * 0.62 + 1.1, 3.2, 0.8]})
+    draw_heatmap(ax_h, an, provs)
 
     # rolling ETS with CI bands
     dates = [utc(d) for d in s.days]
+    roll = an.trailing[ROLL_DAYS]
     ends = []
     for p in provs:
         color = PROVIDER_COLORS.get(s.providers[p], MUTED)
-        y = np.array([g["ets"][p] for g in an.rolling])
-        lo = np.array([g["lo"][p] for g in an.rolling])
-        hi = np.array([g["hi"][p] for g in an.rolling])
+        y, lo, hi = roll["ets"][:, p], roll["lo"][:, p], roll["hi"][:, p]
         ax_r.fill_between(dates, lo, hi, color=color, alpha=0.13, linewidth=0)
         ax_r.plot(dates, y, color=color, linewidth=2, label=s.providers[p])
         last = np.flatnonzero(~np.isnan(y))
@@ -473,8 +481,8 @@ def place_labels(ax, tags, obstacles, **style):
         placed.append(box)
 
 
-def figures(an, heatmap=True):
-    return {"time": fig_time(an, heatmap), "perf": fig_perf(an)}
+def figures(an):
+    return {"time": fig_time(an), "perf": fig_perf(an)}
 
 
 def svg(fig):
@@ -520,6 +528,17 @@ td.none {{ color: {MUTED}; }}
 .sw {{ display: inline-block; width: 10px; height: 10px; border-radius: 2px;
   margin-right: 8px; }}
 .sub {{ display: block; font-size: .75rem; color: {MUTED}; font-weight: 400; }}
+.tl-ctl {{ display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center;
+  margin: 8px 0; font-size: .9rem; color: {INK2}; }}
+.seg {{ display: inline-flex; border: 1px solid {BASELINE}; border-radius: 6px;
+  overflow: hidden; }}
+.seg button {{ background: none; border: 0; color: {INK2}; font: inherit;
+  padding: 4px 12px; cursor: pointer; }}
+.seg button + button {{ border-left: 1px solid {BASELINE}; }}
+.seg button[aria-pressed=true] {{ background: {BASELINE}; color: {INK}; }}
+.tl-ctl label {{ cursor: pointer; }}
+.tl {{ width: 100%; height: 460px; }}
+@media (max-width: 600px) {{ .tl {{ height: 380px; }} }}
 """
 
 JS = """
@@ -542,6 +561,153 @@ document.querySelectorAll("table.sortable th").forEach((th, col) => {
   });
 });
 """
+
+TIMELINE_JS = """
+const TL = JSON.parse(document.getElementById("tl-data").textContent);
+const C = TL.colors, charts = {};
+const esc = v => String(v).replace(/[&<>"]/g, c => `&#${c.charCodeAt(0)};`);
+const num = v => v == null ? "—" : v.toFixed(3);
+
+function series(d, st, narrow) {
+  const w = d.windows[st.win], out = [];
+  d.providers.forEach((p, k) => {
+    const ets = w.ets[k];
+    if (st.ci && st.win > 1) {  // band = invisible lower bound + stacked width
+      const base = {type: "line", name: p.name, color: p.color, stack: "ci" + k,
+                    stackStrategy: "all",
+                    symbol: "none", silent: true, lineStyle: {opacity: 0}, z: 1};
+      out.push({...base, id: "lo:" + k, data: d.days.map((t, i) => [t, w.lo[k][i]])});
+      out.push({...base, id: "ci:" + k, areaStyle: {color: p.color, opacity: 0.13},
+                data: d.days.map((t, i) => [t, w.lo[k][i] == null || w.hi[k][i] == null
+                                               ? null : w.hi[k][i] - w.lo[k][i]])});
+    }
+    if (st.dots && st.win > 1)
+      out.push({type: "scatter", id: "dot:" + k, name: p.name, color: p.color, symbolSize: 6,
+                itemStyle: {color: p.color, opacity: 0.4}, silent: true, z: 2,
+                data: d.days.map((t, i) => [t, d.windows[1].ets[k][i]])});
+    out.push({type: "line", id: "m:" + k, name: p.name, color: p.color, z: 3,
+              lineStyle: {width: 2}, showSymbol: st.win === 1, symbol: "circle", symbolSize: 8,
+              itemStyle: {borderColor: C.surface, borderWidth: 2},
+              connectNulls: false, emphasis: {focus: "series"},
+              endLabel: {show: !narrow, formatter: p.name, color: C.ink2, fontSize: 11},
+              labelLayout: {moveOverlap: "shiftY"},
+              data: d.days.map((t, i) => [t, ets[i]])});
+  });
+  out.push({type: "line", id: "zero", data: [], silent: true, markLine: {
+    silent: true, symbol: "none", label: {show: false},
+    lineStyle: {color: C.muted, type: "dashed", width: 1}, data: [{yAxis: 0}]}});
+  out.push({type: "bar", id: "rain", name: "rain events", xAxisIndex: 1, yAxisIndex: 1,
+            barMaxWidth: 8, itemStyle: {color: C.muted, borderRadius: [2, 2, 0, 0]},
+            data: d.days.map((t, i) => [t, d.rain[i]])});
+  return out;
+}
+
+function tooltip(d, st, chart, params) {
+  const q = params.find(q => q.seriesId === "rain" || q.seriesId.startsWith("m:"));
+  if (!q) return "";
+  const i = q.dataIndex, w = d.windows[st.win];
+  const shown = chart.getOption().legend[0].selected || {};
+  const day = new Date(d.days[i]).toISOString().slice(0, 10);
+  const rows = d.providers.map((p, k) => ({p, k, v: w.ets[k][i]}))
+    .filter(r => shown[r.p.name] !== false)
+    .sort((a, b) => (b.v ?? -9) - (a.v ?? -9))
+    .map(({p, k, v}) => {
+      const [tp, fp, fn] = w.counts[k][i];
+      const ci = st.win > 1 && w.lo[k][i] != null
+        ? ` <span style="color:${C.muted}">[${num(w.lo[k][i])}, ${num(w.hi[k][i])}]</span>` : "";
+      return `<div><span style="display:inline-block;width:8px;height:8px;border-radius:2px;
+        background:${p.color};margin-right:6px"></span><b>${num(v)}</b>${ci}
+        <span style="color:${C.ink2}">${esc(p.name)}</span>
+        <span style="color:${C.muted};font-size:11px">H ${tp} · M ${fn} · FA ${fp}</span></div>`;
+    }).join("");
+  const span = st.win > 1 ? ` · trailing ${st.win} days` : "";
+  return `<div style="margin-bottom:4px"><b>${day}</b>
+    <span style="color:${C.muted}">${d.rain[i]} rain events${span}</span></div>${rows}`;
+}
+
+function build(id) {
+  const d = TL.sensors[id], el = document.getElementById("tl-" + id);
+  const st = {win: TL.default, ci: true, dots: true};
+  const chart = echarts.init(el), narrow = el.clientWidth < 600;
+  const right = narrow ? 16 : 110;
+  const pad = 43200000, min = d.days[0] - pad, max = d.days[d.days.length - 1] + pad;
+  const axis = {axisLine: {lineStyle: {color: C.baseline}}, splitLine: {lineStyle: {color: C.grid}},
+                axisLabel: {color: C.ink2, fontSize: 11}, nameTextStyle: {color: C.ink2, fontSize: 11}};
+  chart.setOption({
+    animation: false,
+    textStyle: {fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif"},
+    legend: {top: 0, left: 0, data: d.providers.map(p => p.name), icon: "roundRect",
+             itemWidth: 10, itemHeight: 10, textStyle: {color: C.ink2},
+             inactiveColor: C.baseline},
+    grid: [{left: 40, right, top: 44, bottom: 168},
+           {left: 40, right, height: 52, bottom: 64}],
+    xAxis: [{type: "time", gridIndex: 0, min, max, ...axis, axisLabel: {show: false},
+             splitLine: {show: false}},
+            {type: "time", gridIndex: 1, min, max, ...axis, splitLine: {show: false}}],
+    yAxis: [{type: "value", gridIndex: 0, ...axis},
+            {type: "value", gridIndex: 1, name: "rain events", minInterval: 1,
+             splitNumber: 2, ...axis}],
+    dataZoom: [{type: "inside", xAxisIndex: [0, 1]},
+               {type: "slider", xAxisIndex: [0, 1], bottom: 8, height: 22,
+                borderColor: C.baseline, fillerColor: "rgba(195,194,183,0.12)",
+                textStyle: {color: C.ink2}, dataBackground: {lineStyle: {color: C.muted},
+                areaStyle: {color: C.grid}}, handleStyle: {color: C.ink2}}],
+    tooltip: {trigger: "axis", backgroundColor: C.surface, borderColor: C.baseline,
+              textStyle: {color: C.ink, fontSize: 12},
+              axisPointer: {type: "line", lineStyle: {color: C.muted}},
+              formatter: params => tooltip(d, st, chart, params)},
+    axisPointer: {link: [{xAxisIndex: "all"}]},
+    series: series(d, st, narrow),
+  });
+  const ctl = document.querySelector(`.tl-ctl[data-sensor="${id}"]`);
+  const render = () => {
+    ctl.querySelectorAll("button").forEach(b =>
+      b.setAttribute("aria-pressed", +b.dataset.win === st.win));
+    ctl.querySelectorAll("input").forEach(c => c.disabled = st.win === 1);
+    chart.setOption({series: series(d, st, narrow)}, {replaceMerge: ["series"]});
+  };
+  ctl.querySelectorAll("button").forEach(b =>
+    b.addEventListener("click", () => { st.win = +b.dataset.win; render(); }));
+  ctl.querySelectorAll("input").forEach(c =>
+    c.addEventListener("change", () => { st[c.dataset.opt] = c.checked; render(); }));
+  render();
+  return chart;
+}
+
+function show() {  // charts in hidden tabs have no size, so build on first view
+  const tab = document.querySelector("input[name=tab]:checked");
+  const id = tab.id.slice(2);
+  (charts[id] ||= build(id)).resize();
+}
+document.querySelectorAll("input[name=tab]").forEach(t => t.addEventListener("change", show));
+addEventListener("resize", () => Object.values(charts).forEach(c => c.resize()));
+show();
+"""
+
+
+def clean(a, digits=4):
+    """Array -> nested lists for JSON, NaN as null."""
+    return [clean(x, digits) for x in a] if np.ndim(a) else (
+        None if np.isnan(a) else round(float(a), digits))
+
+
+def timeline_data(an):
+    s = an.s
+    provs = np.flatnonzero(an.ok)
+    return {
+        "days": [int(d) * 1000 for d in s.days],
+        "rain": [int(n) for n in s.rain_events],
+        "providers": [{"name": s.providers[p],
+                       "color": PROVIDER_COLORS.get(s.providers[p], MUTED)}
+                      for p in provs],
+        "windows": {n: {"ets": clean(t["ets"][:, provs].T),
+                        "lo": clean(t["lo"][:, provs].T),
+                        "hi": clean(t["hi"][:, provs].T),
+                        "counts": t["counts"][:, provs, :3].transpose(1, 0, 2)
+                                  .astype(int).tolist()}
+                    for n, t in an.trailing.items()},
+    }
+
 
 EXPLAIN = f"""
 <details>
@@ -647,7 +813,21 @@ def sensor_html(an, figs):
                f"<th>provider</th>{head}</tr></thead><tbody>{rows}</tbody></table>"
                f"</div>")
 
-    out.append(f"<h2>Over time</h2><figure>{svg(figs['time'])}</figure>")
+    buttons = "".join(f'<button type=button data-win={n}>{n} d</button>'
+                      for n in TIMELINE_DAYS)
+    out.append(
+        f"<h2>Over time, ETS {HEADLINE[0]}–{HEADLINE[1]} min</h2>"
+        f'<div class=tl-ctl data-sensor="{s.name}">'
+        f'<span>trailing window <span class=seg role=group aria-label="trailing window">'
+        f"{buttons}</span></span>"
+        f"<label><input type=checkbox data-opt=ci checked> {LEVEL}% CI</label>"
+        f"<label><input type=checkbox data-opt=dots checked> single-day ETS</label></div>"
+        f'<div class=tl id="tl-{s.name}"></div>'
+        f'<p class="note">Each line pools the counts of the trailing window ending on '
+        f"that day, then scores the pool. Dots are single-day scores: none on dry "
+        f"days, and very noisy on days with one shower. Scroll or drag the slider "
+        f"to zoom; click a legend entry to hide a provider. Hover for hits (H), "
+        f"misses (M) and false alarms (FA).</p>")
     out.append(f"<h2>Performance diagram</h2><figure class=perf>{svg(figs['perf'])}"
                f"<figcaption>Up = detects more rain, right = fewer false alarms. "
                f"Dashed rays are frequency bias; curves are CSI.</figcaption></figure>")
@@ -670,11 +850,18 @@ def write_html(analyses, figs, path, boot, seed):
         f"{{ color: {INK}; border-color: {INK}; }}\n"
         f'#t-{a.s.name}:focus-visible ~ nav label[for="t-{a.s.name}"] '
         f"{{ outline: 2px solid {INK2}; }}\n" for a in analyses)
+    data = json.dumps({
+        "sensors": {a.s.name: timeline_data(a) for a in analyses},
+        "default": ROLL_DAYS,
+        "colors": {"ink": INK, "ink2": INK2, "muted": MUTED, "grid": GRID,
+                   "baseline": BASELINE, "surface": SURFACE},
+    }, separators=(",", ":")).replace("</", "<\\/")
     doc = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nowcast provider skill</title>
-<style>{CSS}{rules}</style></head>
+<style>{CSS}{rules}</style>
+<script src="{ECHARTS}"></script></head>
 <body><main>
 <h1>Nowcast provider skill</h1>
 <p class="meta">weatherindex.ai data, local archive fetched {html.escape(fetched)} ·
@@ -682,7 +869,9 @@ def write_html(analyses, figs, path, boot, seed):
 {EXPLAIN}
 {tabs}<nav>{labels}</nav>
 {panels}
-</main><script>{JS}</script></body></html>
+</main>
+<script type="application/json" id="tl-data">{data}</script>
+<script>{JS}{TIMELINE_JS}</script></body></html>
 """
     with open(path, "w") as f:
         f.write(doc)
@@ -700,7 +889,7 @@ def main():
     ap.add_argument("--plot", nargs="?", const=".", default=None, metavar="DIR",
                     help="write wxskill_<sensor>_{time,perf}.png (default dir: .)")
     ap.add_argument("--html", nargs="?", const="wxskill_report.html", default=None,
-                    metavar="PATH", help="write a self-contained HTML report "
+                    metavar="PATH", help="write an HTML report (loads ECharts from a CDN) "
                     "(default: wxskill_report.html)")
     ap.add_argument("--boot", type=int, default=2000,
                     help="bootstrap resamples (default 2000)")
@@ -722,7 +911,7 @@ def main():
                 fig.savefig(path, dpi=150)
                 print(f"plot saved to {path}")
         if args.html:
-            figs[sensor] = figures(an, heatmap=False)
+            figs[sensor] = {"perf": fig_perf(an)}
     if args.html:
         write_html(analyses, figs, args.html, args.boot, args.seed)
 
