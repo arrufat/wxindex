@@ -1,34 +1,34 @@
 {
   "LEBL": {
     "aggregated_metrics": {
-      "rows": 19800,
-      "new_rows": 102,
+      "rows": 20010,
+      "new_rows": 120,
       "covered_from": 1771200000,
-      "covered_until": 1791792174,
-      "fetched_at": "2026-10-12T08:02:55+00:00"
+      "covered_until": 1792399616,
+      "fetched_at": "2026-10-19T08:46:57+00:00"
     },
     "rain_events": {
-      "rows": 239,
-      "new_rows": 3,
+      "rows": 246,
+      "new_rows": 4,
       "covered_from": 1771200000,
-      "covered_until": 1791792174,
-      "fetched_at": "2026-10-12T08:02:55+00:00"
+      "covered_until": 1792399616,
+      "fetched_at": "2026-10-19T08:46:57+00:00"
     }
   },
   "RKSS": {
     "aggregated_metrics": {
-      "rows": 19800,
-      "new_rows": 102,
+      "rows": 20010,
+      "new_rows": 210,
       "covered_from": 1771200000,
-      "covered_until": 1791792175,
-      "fetched_at": "2026-10-12T08:02:56+00:00"
+      "covered_until": 1792399617,
+      "fetched_at": "2026-10-19T08:46:58+00:00"
     },
     "rain_events": {
-      "rows": 239,
-      "new_rows": 3,
+      "rows": 246,
+      "new_rows": 7,
       "covered_from": 1771200000,
-      "covered_until": 1791792175,
-      "fetched_at": "2026-10-12T08:02:56+00:00"
+      "covered_until": 1792399617,
+      "fetched_at": "2026-10-19T08:46:58+00:00"
     }
   }
 }
